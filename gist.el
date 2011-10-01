@@ -96,12 +96,13 @@
 
 (defun github-auth-info ()
   "Return the user's GitHub authorization information.
-Searches for a GitHub username and token in the global Git config,
-and returns (USERNAME . TOKEN). If nothing is found, prompts
-for the info then sets it to the git config."
+Searches for a GitHub username and token in the global Git
+config, and returns (USERNAME . TOKEN). If nothing is found,
+prompts for the info and writes it to the git config before
+returning it."
   (interactive)
-  ;; If we've been called within a scope that already has this
-  ;; defined, don't take the time to get it again.
+  ;; If we've been called within a scope that already has this defined, just
+  ;; return it.
   (if (boundp '*github-auth-info*)
       *github-auth-info*
     (cons (or github-user (github-config "user")
