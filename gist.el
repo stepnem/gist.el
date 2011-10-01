@@ -158,20 +158,11 @@ With a prefix argument, prompts for privacy and file name."
   (let* ((deffile (file-name-nondirectory
                    (or (buffer-file-name) (buffer-name))))
          (name (if arg (.read-string-with-default "File name" nil deffile)))
-         ;; (defext (or (cdr (assoc major-mode gist-supported-modes-alist))
-         ;;             (file-name-extension name)
-         ;;             "txt"))
-         ;; (ext (if arg (.complete-with-default
-         ;;               "File type" (mapcar 'cdr gist-supported-modes-alist)
-         ;;               nil defext)
-         ;;        defext))
          (private (and arg (y-or-n-p "Private? "))))
     (gist-request
      "https://gist.github.com/gists"
      (or callback 'gist-created-callback)
      `(,@(if private '(("action_button" . "private")))
-       ;; FIXME
-       ;; ("file_ext[gistfile1]" . ,(concat "." ext))
        ("file_name[gistfile1]" . ,name)
        ("file_contents[gistfile1]" . ,(buffer-substring begin end))))))
 
