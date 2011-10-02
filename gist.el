@@ -132,21 +132,39 @@ With a prefix argument, prompts for privacy and file name."
   (if (use-region-p) (gist-region (region-beginning) (region-end) arg)
     (gist-buffer arg)))
 
+(defvar gist-list-time-format "%m/%d %R"
+  "*`format-time-string'-compatible format for gist time stamps.")
+
 (defun gist-list--display (gists)
   (with-current-buffer (get-buffer-create "*gists*")
-    (let ((inhibit-read-only t))
+    (let ((inhibit-read-only t)
+          (line-format
+           (concat "%-20s %-"
+                   (number-to-string
+                    (length (format-time-string gist-list-time-format)))
+                   "s %s\n")))
       (erase-buffer)
       (save-excursion
-        (insert (format "%-20s %-20s %s\n" "ID" "Created" "Description"))
+        (insert (format line-format "ID" "Created" "Description (or file name)"))
         (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
         (mapc (lambda (g)
-                (insert
-                 (propertize
-                  (apply 'format "%-20s %-20s %s"
-                         (mapcar (& 'plist-get g)
-                                 '(:id :created_at :description)))
-                  'gist-metadata g)
-                 "\n"))
+                (destructuring-bind (id time desc)
+                    (mapcar (& 'plist-get g) '(:id :created_at :description))
+                  (insert
+                   (propertize
+                    ;; `timezone-parse-date' or something might be useful
+                    (format line-format
+                            id
+                            (format-time-string
+                             gist-list-time-format
+                             (apply
+                              'encode-time
+                              (parse-time-string
+                               (replace-regexp-in-string "T\\|Z" " " time))))
+                            (or (.non-empty-string desc)
+                                (concat "file:"
+                                        (plist-get (gist--file g) :filename))))
+                    'gist-metadata g))))
               gists)))
     (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
     (switch-to-buffer-other-window (current-buffer))))
