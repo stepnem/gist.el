@@ -1,171 +1,98 @@
-;; gist.el --- Emacs integration for the gist.github.com pastebin service
+;;; gist.el --- interface to the gist.github.com pastebin service
 
-;; Author: Christian Neukirchen <purl.org/net/chneukirchen>
-;;         Štěpán Němec <stepnem@gmail.com>
-;; Maintainer: Štěpán Němec <stepnem@gmail.com>
-;; Contributors: Farrington <wcfarrington@gmail.com>
-;;               Michael Ivey
-;;               Phil Hagelberg
-;;               Dan McKinley
-;; Version: 0.6
-;; Created: 21 Jul 2008
+;; Author: Štěpán Němec <stepnem@gmail.com>
+;; Licence: Whatever Works
+;; Version: 1.0b
+;; Created: 2011-10-02 17:10 +0200 Sunday
 ;; Keywords: gist, git, github, pastebin
 
 ;; This file is NOT part of GNU Emacs.
 
-;; This is free software; you can redistribute it and/or modify it under
-;; the terms of the GNU General Public License as published by the Free
-;; Software Foundation; either version 2, or (at your option) any later
-;; version.
-;;
-;; This is distributed in the hope that it will be useful, but WITHOUT
-;; ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-;; FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-;; for more details.
-;;
-;; You should have received a copy of the GNU General Public License along
-;; with this program. If not, see <http://www.gnu.org/licenses/>.
-
 ;;; Commentary:
 
-;; TODO
 ;; http://developer.github.com/v3/gists/
 
-;; Uses your local GitHub config if it can find it.
-;; See http://github.com/blog/180-local-github-config
+;; This started as a rewrite of <https://github.com/defunkt/gist.el>, but
+;; nothing from the original remains other than some of the command names.
+
+;; The functionality currently depends on the `curl' command line utility, as
+;; I haven't managed to get the Emacs URL package to authenticate with GitHub.
+;; On the plus side, I think curl is maintained, standards-compliant and
+;; reliable, neither of which can be said about the URL package.
+
+;; (If URL on my system ever comes to its senses, providing a way to use it in
+;; this package will be trivial and I'll happily do it. Also, maybe I'm just
+;; an idiot and it'd work for other people. It even works for me with other
+;; websites, in any case.)
+
+;; Corrections and constructive feedback appreciated.
+
+;;; Todo:
+
+;; - Do something about the paging maybe? I don't have enough gists to care at
+;;   this point.
 
 ;;; Code:
 
 (require 'dotelib)
-(require 'xml)
-
-(defvar github-user nil
-  "*If non-nil, used as your GitHub username without checking git-config(1).")
-
-(defvar github-token nil
-  "*If non-nil, used as your GitHub token without checking git-config(1).")
+(require 'json)
 
 (defvar gist-view-gist nil
   "*If non-nil, automatically view new gists after posting, using `browse-url'.")
-
-(defvar gist-supported-modes-alist '((action-script-mode . "as")
-                                     (c-mode . "c")
-                                     (c++-mode . "cpp")
-                                     (clojure-mode . "clj")
-                                     (common-lisp-mode . "lisp")
-                                     (css-mode . "css")
-                                     (diff-mode . "diff")
-                                     (emacs-lisp-mode . "el")
-                                     (erlang-mode . "erl")
-                                     (haskell-mode . "hs")
-                                     (html-mode . "html")
-                                     (io-mode . "io")
-                                     (java-mode . "java")
-                                     (javascript-mode . "js")
-                                     (jde-mode . "java")
-                                     (js2-mode . "js")
-                                     (lua-mode . "lua")
-                                     (ocaml-mode . "ml")
-                                     (objective-c-mode . "m")
-                                     (perl-mode . "pl")
-                                     (php-mode . "php")
-                                     (python-mode . "py")
-                                     (ruby-mode . "rb")
-                                     (text-mode . "txt")
-                                     (scala-mode . "scala")
-                                     (sql-mode . "sql")
-                                     (scheme-mode . "scm")
-                                     (smalltalk-mode . "st")
-                                     (sh-mode . "sh")
-                                     (tcl-mode . "tcl")
-                                     (tex-mode . "tex")
-                                     (xml-mode . "xml")))
 
-(defun github-config (key)
-  "Return a GitHub-specific value from the global Git config."
-  (let ((value
-         (shell-command-to-string
-          (concat (executable-find "git") " config --global github." key))))
-    (when (> (length value) 0) (substring value 0 -1))))
-
-(defun github-set-config (key value)
-  "Set a GitHub-specific value in the global Git config."
-  (shell-command-to-string
-   (format "%s config --global github.%s %s"
-           (executable-find "git") key value)))
-
-(defun github-auth-info ()
-  "Return the user's GitHub authorization information.
-Searches for a GitHub username and token in the global Git
-config, and returns (USERNAME . TOKEN). If nothing is found,
-prompts for the info and writes it to the git config before
-returning it."
-  (interactive)
-  ;; If we've been called within a scope that already has this defined, just
-  ;; return it.
-  (if (boundp '*github-auth-info*)
-      *github-auth-info*
-    (cons (or github-user (github-config "user")
-              (let ((user (read-string "GitHub username: ")))
-                (github-set-config "user" user)
-                user))
-          (or github-token (github-config "token")
-              (let ((token (read-string "GitHub API token: ")))
-                (github-set-config "token" token)
-                token)))))
-
-(defmacro github-with-auth-info (login token &rest body)
-  "Evaluate BODY with LOGIN and TOKEN bound to the GitHub authentication credentials.
-The credentials are retrieved at most once within the body of this macro."
-  (declare (indent 2))
-  `(let ((*github-auth-info* (github-auth-info)))
-     (destructuring-bind (,login . ,token) *github-auth-info*
-       ,@body)))
-
-(defun gist-request (url callback &optional params)
-  "Make an asynchronous request to URL, calling CALLBACK when complete.
-The GitHub parameters are included in the request. Optionally
-accepts additional POST PARAMS as a list of (KEY . VALUE) pairs."
-  (github-with-auth-info login token
-    (let ((url-request-data (gist-make-query-string
-                             `(("login" . ,login)
-                               ("token" . ,token) ,@params)))
-          (url-max-redirecton -1)
-          (url-request-method "POST"))
-      (url-retrieve url callback))))
-
-(defun gist-make-query-string (params)
-  "Return a query string constructed from PARAMS.
-PARAMS should be a list with elements of the form (KEY . VALUE).
-KEY and VALUE should both be strings."
-  (mapconcat (lambda (param) (concat (url-hexify-string (car param)) "="
-                                     (url-hexify-string (cdr param))))
-             params "&"))
-
-(defun gist-created-callback (status)
-  (let ((location (cadr status)))
-    (message "Paste created: %s" location)
-    (when gist-view-gist (browse-url location))
-    (kill-new location)
-    (kill-buffer nil)))
+(put 'gist-http-error 'error-conditions '(error gist-http-error))
+(put 'gist-http-error 'error-message "Gist HTTP error")
+(defun gist-curl (path &optional data method)
+  "Make a synchronous HTTPS request with METHOD for PATH to the GitHub API.
+METHOD defaults to GET when DATA is nil, or POST with DATA as
+payload. Returns the JSON response as parsed by
+`json-read-from-string' when successful, otherwise signals a
+`gist-http-error' with error data consisting of a list of the
+return status and the JSON payload (if any)."
+  (let ((auth (auth-source-user-or-password
+               '("login" "password") "api.github.com" "https" t)))
+    (with-current-buffer (get-buffer-create "*gist-http*")
+      (erase-buffer)
+      (apply 'call-process "curl" nil t nil
+             `("-sD-"
+               ,@(when (cdr auth) `("-u" ,(mapconcat 'identity auth ":")))
+               ,@(when data `("--data-binary" ,data))
+               ,@(when method `("-X" ,method))
+               ,(concat "https://api.github.com" path)))
+      (goto-char (point-min))
+      (while (re-search-forward "^HTTP/1.1 100 Continue\r\n\r\n" nil t))
+      (let ((status (and (looking-at "HTTP/1.. +\\([0-9]+.*\\)\r\n")
+                         (match-string 1)))
+            (json (let ((json-object-type 'plist)
+                        (json-false nil))
+                    (search-forward "\r\n\r\n")
+                    (ignore-errors (json-read)))))
+        (cond ((string-match "200\\|201" status) json)
+              ((string-match "204" status) status)
+              (t (signal 'gist-http-error (list status json))))))))
 
 ;;;###autoload
 (defun gist-region (begin end &optional arg callback)
-  "Post the current region as a new paste at gist.github.com
+  "Post the current region as a new paste at gist.github.com.
 Copies the URL into the kill ring.
 
-With a prefix argument, prompts for privacy and file name."
+With a prefix argument, prompts for description, privacy and file name."
   (interactive "r\nP")
   (let* ((deffile (file-name-nondirectory
                    (or (buffer-file-name) (buffer-name))))
+         (description (and arg (read-string "Description: ")))
          (name (if arg (.read-string-with-default "File name" nil deffile)))
-         (private (and arg (y-or-n-p "Private? "))))
-    (gist-request
-     "https://gist.github.com/gists"
-     (or callback 'gist-created-callback)
-     `(,@(if private '(("action_button" . "private")))
-       ("file_name[gistfile1]" . ,name)
-       ("file_contents[gistfile1]" . ,(buffer-substring begin end))))))
+         (private (and arg (y-or-n-p "Private? ")))
+         (gist (gist-curl
+                "/gists"
+                (json-encode
+                 `((description . ,description)
+                   (public . ,(not private))
+                   (files (,name (content . ,(buffer-substring-no-properties begin end))))))))
+         (url (plist-get gist :html_url)))
+    (kill-new url)
+    (message "Posted at %s" url)
+    (when gist-view-gist (browse-url url))))
 
 ;;;###autoload
 (defun gist-buffer (&optional arg)
@@ -189,7 +116,7 @@ With a prefix argument, prompts for privacy and file name."
 
 ;;;###autoload
 (defun gist-region-or-buffer (&optional arg)
-  "Post either the current region, or if mark is not set, the current buffer as a new gist.
+  "Post the current region or buffer (when region is not active) as a new gist.
 Copies the URL into the kill ring.
 
 With a prefix argument, prompts for privacy and file name."
@@ -197,116 +124,81 @@ With a prefix argument, prompts for privacy and file name."
   (if (use-region-p) (gist-region (region-beginning) (region-end) arg)
     (gist-buffer arg)))
 
-;; borrowed from rss.el
-(defun gist-xml-cleanup (xml-list)
-  "Remove empty strings or whitespace nodes from XML-LIST."
-  (mapcar 'gist-xml-cleanup-node xml-list))
-
-(defun gist-xml-cleanup-node (node)
-  "Recursively remove whitespace and empty strings from the given XML NODE."
-  (apply 'list
-         (xml-node-name node)
-         (xml-node-attributes node)
-         (let (new)
-           (dolist (child (xml-node-children node))
-             (if (stringp child)
-                 (or (string-match "\\`[ \t\n]+\\'" child)
-                     (push child new))
-               (push (gist-xml-cleanup-node child) new)))
-           (nreverse new))))
-
-(defun gist-lists-retrieved-callback (status)
-  "Called when the list of gists has been retrieved.
-Parses the result and displays the list."
-  (goto-char (point-min))
-  (search-forward "<?xml")
-  (let ((gists (gist-xml-cleanup
-                (xml-parse-region (match-beginning 0) (point-max)))))
-    (kill-buffer nil)
-    (with-current-buffer (get-buffer-create "*gists*")
-      (toggle-read-only -1)
-      (goto-char (point-min))
+(defun gist-list--display (gists)
+  (with-current-buffer (get-buffer-create "*gists*")
+    (let ((inhibit-read-only t))
+      (erase-buffer)
       (save-excursion
-        (kill-region (point-min) (point-max))
-        (gist-insert-list-header)
-        (mapc 'gist-insert-gist-link (xml-node-children (car gists)))
-        ;; remove the extra newline at the end
-        (delete-char -1))
-      ;; skip header
-      (forward-line)
-      (toggle-read-only t)
-      (set-window-buffer nil (current-buffer)))))
+        (insert (format "%-20s %-20s %s %s\n"
+                        "ID" "Created" "Public" "Description"))
+        (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
+        (mapc (lambda (g)
+                (insert
+                 (propertize
+                  (apply 'format "%-20s %-20s %-6s %s"
+                         (mapcar (& 'plist-get g)
+                                 '(:id :created_at :public :description)))
+                  'gist-metadata g)
+                 "\n"))
+              gists)))
+    (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
+    (switch-to-buffer-other-window (current-buffer))))
 
-(defun gist-insert-list-header ()
-  "Create the header line in the gist list buffer."
-  (save-excursion
-    (insert (format "%-8s %-25s %s %s\n"
-                    "ID" "Created" "Public" "Description")))
-  (overlay-put (make-overlay (line-beginning-position) (line-end-position))
-               'face 'header-line)
-  (forward-line))
+(define-derived-mode gist-list-mode special-mode "Gist List")
+(.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
+                                   ("d" gist-list-delete-gist)
+                                   ("n" next-line)
+                                   ("p" previous-line)))
 
-(defun gist-insert-gist-link (gist)
-  "Insert a button that will open the given gist when pressed."
-  (let* ((data (gist-parse-gist gist))
-         (repo (car data)))
-    (insert (apply 'format "%-8s %-25s %-6s %s" data))
-    (make-text-button (line-beginning-position) (line-end-position)
-                      'repo repo
-                      'action 'gist-fetch-button
-                      'face 'default))
-  (insert "\n"))
+(defun gist-list-fetch-gist ()
+  "Fetch and display the gist on the current line."
+  (interactive)
+  (gist-fetch (gist-list--get :id)))
 
-(defun gist-fetch-button (button)
-  "Called when a gist button has been pressed. Fetches and displays the gist."
-  (gist-fetch (button-get button 'repo)))
+(defun gist-list-delete-gist ()
+  "Delete the gist on the current line."
+  (interactive)
+  (let ((id (gist-list--get :id))
+        (inhibit-read-only t))
+    (when (y-or-n-p (format "Delete gist %s? " id))
+      (message "%s" (gist-curl (concat "/gists/" id) nil "DELETE"))
+      (delete-region (line-beginning-position) (1+ (line-end-position))))))
 
-(defun gist-parse-gist (gist)
-  "Return a list of GIST's attributes for display.
-GIST is the parsed XML <gist> element."
-  (mapcar (lambda (s) (gist-child-text s gist))
-          '(repo created-at public description)))
-
-(defun gist-child-text (sym node)
-  "Retrieve the text content of a child of a <gist> element."
-  (car (xml-node-children (assq sym (xml-node-children node)))))
+(defun gist-list--get (prop)
+  (plist-get (get-text-property (point) 'gist-metadata) prop))
 
 ;;;###autoload
 (defun gist-list ()
   "Display a list of all of the current user's gists in a new buffer."
   (interactive)
   (message "Retrieving list of your gists...")
-  (github-with-auth-info login token
-    (gist-request
-     (format "https://gist.github.com/api/v1/xml/gists/%s" login)
-     'gist-lists-retrieved-callback)))
+  (gist-list--display (gist-curl "/gists")))
 
-(defvar gist-fetch-url "https://raw.github.com/gist/"
-  "Raw gist content base URL.")
-
 (defun gist-fetch--default ()
-  (or (.non-empty-string (number-at-point))
-      (.match-nearest-point "https://gist\\.github\\.com/\\([0-9]+\\)")))
+  (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)")
+      (.match-nearest-point "\\b\\(?:[0-9]\\{7\\}\\|[0-9a-f]\\{20\\}\\)\\b")
+      (.match-nearest-point "\\(?:[0-9]\\{1,7\\}\\|[0-9a-f]\\{20\\}\\)")))
 (defvar gist-fetch-history nil)
 ;;;###autoload
 (defun gist-fetch (id)
   "Fetch a gist ID and display it in a new buffer.
-If the gist already exists in a buffer, switches to it."
+Assumes a single-file gist (just use Git for working with
+multi-file gist repos)."
   (interactive (list (.read-string-with-default
                       "Gist ID" 'gist-fetch-history (gist-fetch--default))))
-  (let ((bname (format "*gist %s*" id)))
-    (if (get-buffer bname) (switch-to-buffer-other-window bname)
-      (message "Fetching Gist %s..." id)
-      (with-current-buffer (url-retrieve-synchronously
-                            (concat gist-fetch-url id))
-        (rename-buffer bname t)
-        (goto-char (point-min))
-        (search-forward-regexp "\n\n")
-        (buffer-enable-undo)
-        (delete-region (point-min) (point))
-        (fundamental-mode)
-        (set-buffer-modified-p nil)
-        (switch-to-buffer-other-window (current-buffer))))))
+  (message "Fetching Gist %s..." id)
+  (let* ((gist (gist-curl (concat "/gists/" id)))
+         (file (cadr (plist-get gist :files)))
+         (buffer (generate-new-buffer
+                  (concat "gist:" id ":" (plist-get file :filename)))))
+    (with-current-buffer buffer
+      (prin1 gist (current-buffer))
+      (undo-boundary)
+      (erase-buffer)
+      (insert (plist-get file :content))
+      (normal-mode)
+      (switch-to-buffer-other-window (current-buffer))))
+  (message "Fetching Gist %s...done" id))
 
 (provide 'gist)
 ;;; gist.el ends here.
