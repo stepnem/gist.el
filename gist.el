@@ -129,15 +129,14 @@ With a prefix argument, prompts for privacy and file name."
     (let ((inhibit-read-only t))
       (erase-buffer)
       (save-excursion
-        (insert (format "%-20s %-20s %s %s\n"
-                        "ID" "Created" "Public" "Description"))
+        (insert (format "%-20s %-20s %s\n" "ID" "Created" "Description"))
         (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
         (mapc (lambda (g)
                 (insert
                  (propertize
-                  (apply 'format "%-20s %-20s %-6s %s"
+                  (apply 'format "%-20s %-20s %s"
                          (mapcar (& 'plist-get g)
-                                 '(:id :created_at :public :description)))
+                                 '(:id :created_at :description)))
                   'gist-metadata g)
                  "\n"))
               gists)))
