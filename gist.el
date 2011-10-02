@@ -38,7 +38,7 @@
 (require 'json)
 
 (defvar gist-view-gist nil
-  "*If non-nil, automatically view new gists after posting, using `browse-url'.")
+  "*If non-nil, automatically `browse-url' new gists after posting.")
 
 (put 'gist-http-error 'error-conditions '(error gist-http-error))
 (put 'gist-http-error 'error-message "Gist HTTP error")
@@ -143,33 +143,33 @@ region, buffer, file, or X selection) in the minibuffer."
          (id (.complete-with-default
               "ID" (mapcar (& (.flip 'plist-get) :id) gists)
               nil (gist-fetch--default))))
-    (gist-curl (concat "/gists/" id)
-               (or data
-                   (let* ((gist (find-if (λ (g) (equal (plist-get g :id) id))
-                                         gists))
-                          (file (gist--file gist))
-                          (oldname (plist-get file :filename))
-                          (olddesc (plist-get gist :description))
-                          (newdesc (.read-string-with-default
-                                    "Description" nil olddesc))
-                          (newname (.read-string-with-default
-                                    "File name" nil oldname))
-                          (content (cond ((region-active-p)
-                                          (buffer-substring-no-properties
-                                           (region-beginning) (region-end)))
-                                         ((y-or-n-p "Buffer? ")
-                                          (with-current-buffer (read-buffer "Buffer name: " (current-buffer) t)
-                                            (buffer-substring-no-properties (point-min) (point-max))))
-                                         ((y-or-n-p "Selection? ")
-                                          (x-get-selection))
-                                         ((y-or-n-p "File? ")
-                                          (.file-string (read-file-name "File name: ")))
-                                         (t
-                                          (message "There's no pleasing some people")
-                                          nil))))
-                     (gist-encode oldname content nil newdesc
-                                  (unless (equal newname oldname) newname))))
-               "PATCH")))
+    (gist-curl
+     (concat "/gists/" id)
+     (or
+      data
+      (let*
+        ((gist (find-if (λ (g) (equal (plist-get g :id) id)) gists))
+         (file (gist--file gist))
+         (oldname (plist-get file :filename))
+         (olddesc (plist-get gist :description))
+         (newdesc (.read-string-with-default
+                   "Description" nil olddesc))
+         (newname (.read-string-with-default
+                   "File name" nil oldname))
+         (content
+          (cond
+            ((region-active-p) (buffer-substring-no-properties
+                                (region-beginning) (region-end)))
+            ((y-or-n-p "Buffer? ")
+             (with-current-buffer
+                 (read-buffer "Buffer name: " (current-buffer) t)
+               (buffer-substring-no-properties (point-min) (point-max))))
+            ((y-or-n-p "Selection? ") (x-get-selection))
+            ((y-or-n-p "File? ") (.file-string (read-file-name "File name: ")))
+            (t (message "There's no pleasing some people") nil))))
+        (gist-encode oldname content nil newdesc
+                     (unless (equal newname oldname) newname))))
+     "PATCH")))
 
 (defvar gist-list-time-format "%m/%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
@@ -184,7 +184,8 @@ region, buffer, file, or X selection) in the minibuffer."
                    "s %s\n")))
       (erase-buffer)
       (save-excursion
-        (insert (format line-format "ID" "Created" "Description (or file name)"))
+        (insert (format line-format
+                        "ID" "Created" "Description (or file name)"))
         (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
         (mapc (lambda (g)
                 (destructuring-bind (id time desc)
