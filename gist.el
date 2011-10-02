@@ -70,6 +70,16 @@ return status and the JSON payload (if any)."
         (cond ((string-match "200\\|201" status) json)
               ((string-match "204" status) status)
               (t (signal 'gist-http-error (list status json))))))))
+
+(defun gist-encode (filename content &optional public description newname)
+  (json-encode
+   `(,@(when description `((description . ,description)))
+     ,@(when public `((public . ,public)))
+     ,@(when content `((files (,filename
+                               ,@(when newname `((filename . ,newname)))
+                               (content . ,content))))))))
+
+(defun gist--file (gist) (cadr (plist-get gist :files)))
 
 ;;;###autoload
 (defun gist-region (begin end &optional arg callback)
@@ -85,10 +95,8 @@ With a prefix argument, prompts for description, privacy and file name."
          (private (and arg (y-or-n-p "Private? ")))
          (gist (gist-curl
                 "/gists"
-                (json-encode
-                 `((description . ,description)
-                   (public . ,(not private))
-                   (files (,name (content . ,(buffer-substring-no-properties begin end))))))))
+                (gist-encode name (buffer-substring-no-properties begin end)
+                             (or (not private) json-false) description)))
          (url (plist-get gist :html_url)))
     (kill-new url)
     (message "Posted at %s" url)
@@ -187,7 +195,7 @@ multi-file gist repos)."
                       "Gist ID" 'gist-fetch-history (gist-fetch--default))))
   (message "Fetching Gist %s..." id)
   (let* ((gist (gist-curl (concat "/gists/" id)))
-         (file (cadr (plist-get gist :files)))
+         (file (gist--file gist))
          (buffer (generate-new-buffer
                   (concat "gist:" id ":" (plist-get file :filename)))))
     (with-current-buffer buffer
