@@ -131,6 +131,45 @@ With a prefix argument, prompts for privacy and file name."
   (interactive "P")
   (if (use-region-p) (gist-region (region-beginning) (region-end) arg)
     (gist-buffer arg)))
+
+;;;###autoload
+(defun gist-update (&optional id data)
+  "Update the (single-file) gist ID with DATA.
+DATA should be in the form returned by `gist-encode'.
+Interactively, prompts for ID and and DATA (which can come from a
+region, buffer, file, or X selection) in the minibuffer."
+  (interactive)
+  (let* ((gists (gist-curl "/gists"))
+         (id (.complete-with-default
+              "ID" (mapcar (& (.flip 'plist-get) :id) gists)
+              nil (gist-fetch--default))))
+    (gist-curl (concat "/gists/" id)
+               (or data
+                   (let* ((gist (find-if (λ (g) (equal (plist-get g :id) id))
+                                         gists))
+                          (file (gist--file gist))
+                          (oldname (plist-get file :filename))
+                          (olddesc (plist-get gist :description))
+                          (newdesc (.read-string-with-default
+                                    "Description" nil olddesc))
+                          (newname (.read-string-with-default
+                                    "File name" nil oldname))
+                          (content (cond ((region-active-p)
+                                          (buffer-substring-no-properties
+                                           (region-beginning) (region-end)))
+                                         ((y-or-n-p "Buffer? ")
+                                          (with-current-buffer (read-buffer "Buffer name: " (current-buffer) t)
+                                            (buffer-substring-no-properties (point-min) (point-max))))
+                                         ((y-or-n-p "Selection? ")
+                                          (x-get-selection))
+                                         ((y-or-n-p "File? ")
+                                          (.file-string (read-file-name "File name: ")))
+                                         (t
+                                          (message "There's no pleasing some people")
+                                          nil))))
+                     (gist-encode oldname content nil newdesc
+                                  (unless (equal newname oldname) newname))))
+               "PATCH")))
 
 (defvar gist-list-time-format "%m/%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
