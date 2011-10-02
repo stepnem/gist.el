@@ -172,6 +172,7 @@ With a prefix argument, prompts for privacy and file name."
 (define-derived-mode gist-list-mode special-mode "Gist List")
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
                                    ("d" gist-list-delete-gist)
+                                   ("e" gist-list-edit-description)
                                    ("n" next-line)
                                    ("p" previous-line)))
 
@@ -188,6 +189,18 @@ With a prefix argument, prompts for privacy and file name."
     (when (y-or-n-p (format "Delete gist %s? " id))
       (message "%s" (gist-curl (concat "/gists/" id) nil "DELETE"))
       (delete-region (line-beginning-position) (1+ (line-end-position))))))
+
+(defun gist-list-edit-description ()
+  "Edit description of the gist on the current line."
+  (interactive)
+  (let* ((id (gist-list--get :id))
+         (old (gist-list--get :description))
+         (new (.read-string-with-default "New description" nil old)))
+    (message "Updating description of gist %s..." id)
+    (when (gist-curl (concat "/gists/" id)
+                     (json-encode `((description . ,new)))
+                     "PATCH")
+      (message "Updating description of gist %s...done" id))))
 
 (defun gist-list--get (prop)
   (plist-get (get-text-property (point) 'gist-metadata) prop))
