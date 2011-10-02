@@ -131,7 +131,7 @@ With a prefix argument, prompts for privacy and file name."
   (interactive "P")
   (if (use-region-p) (gist-region (region-beginning) (region-end) arg)
     (gist-buffer arg)))
-
+
 ;;;###autoload
 (defun gist-update (&optional id data)
   "Update the (single-file) gist ID with DATA.
@@ -207,7 +207,7 @@ region, buffer, file, or X selection) in the minibuffer."
               gists)))
     (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
     (switch-to-buffer-other-window (current-buffer))))
-
+
 (define-derived-mode gist-list-mode special-mode "Gist List")
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
                                    ("b" gist-list-browse-gist)
