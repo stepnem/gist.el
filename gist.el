@@ -171,6 +171,7 @@ With a prefix argument, prompts for privacy and file name."
 
 (define-derived-mode gist-list-mode special-mode "Gist List")
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
+                                   ("b" gist-list-browse-gist)
                                    ("d" gist-list-delete-gist)
                                    ("e" gist-list-edit-description)
                                    ("n" next-line)
@@ -180,6 +181,11 @@ With a prefix argument, prompts for privacy and file name."
   "Fetch and display the gist on the current line."
   (interactive)
   (gist-fetch (gist-list--get :id)))
+
+(defun gist-list-browse-gist ()
+  "Go to the URL of the gist on the current line using `browse-url'."
+  (interactive)
+  (browse-url (gist-list--get :html_url)))
 
 (defun gist-list-delete-gist ()
   "Delete the gist on the current line."
