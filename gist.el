@@ -80,6 +80,18 @@ return status and the JSON payload (if any)."
                                (content . ,content))))))))
 
 (defun gist--file (gist) (cadr (plist-get gist :files)))
+
+;;;###autoload
+(defun gist (filename content &optional public description)
+  (let ((url (plist-get (gist-create filename content public description)
+                        :html_url)))
+    (kill-new url)
+    (message "Posted at %s" url)
+    (when gist-view-gist (browse-url url))))
+
+(defun gist-create (filename content &optional public description)
+  (gist-curl "/gists" (gist-encode filename content
+                                   (or public json-false) description)))
 
 ;;;###autoload
 (defun gist-region (begin end &optional arg callback)
@@ -92,15 +104,9 @@ With a prefix argument, prompts for description, privacy and file name."
                    (or (buffer-file-name) (buffer-name))))
          (description (and arg (read-string "Description: ")))
          (name (if arg (.read-string-with-default "File name" nil deffile)))
-         (private (and arg (y-or-n-p "Private? ")))
-         (gist (gist-curl
-                "/gists"
-                (gist-encode name (buffer-substring-no-properties begin end)
-                             (or (not private) json-false) description)))
-         (url (plist-get gist :html_url)))
-    (kill-new url)
-    (message "Posted at %s" url)
-    (when gist-view-gist (browse-url url))))
+         (private (and arg (y-or-n-p "Private? "))))
+    (gist name (buffer-substring-no-properties begin end)
+          (not private) description)))
 
 ;;;###autoload
 (defun gist-buffer (&optional arg)
