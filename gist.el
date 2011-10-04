@@ -178,7 +178,7 @@ file, or X selection."
     (save-excursion
       (erase-buffer)
       (insert (format gist-list-line-format
-                      "ID" "Created" "Description (or file name)"))
+                      "ID" "Created" "Description[file name]"))
       (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
       (mapc 'gist-list--insert-line (gist-curl "/gists")))))
 
@@ -195,9 +195,13 @@ file, or X selection."
                (apply 'encode-time
                       (parse-time-string
                        (replace-regexp-in-string "T\\|Z" " " time))))
-              (or (.non-empty-string desc)
-                  (concat "file:" (plist-get (gist--file data) :filename))))
+              (concat desc "[" (plist-get (gist--file data) :filename) "]"))
       'gist-metadata data))))
+
+(defun gist-list--get (prop)
+  (plist-get (funcall (if (eq prop :filename) 'gist--file 'identity)
+                      (get-text-property (point) 'gist-metadata))
+             prop))
 
 (define-derived-mode gist-list-mode special-mode "Gist List" nil
   (.setq-local revert-buffer-function 'gist-list--refresh))
@@ -232,6 +236,7 @@ file, or X selection."
   "Edit description of the gist on the current line."
   (interactive)
   (let* ((id (gist-list--get :id))
+         (fname (gist-list--get :filename))
          (time (gist-list--get :created_at))
          (old (gist-list--get :description))
          (new (.read-string-with-default "New description" nil old))
@@ -240,7 +245,8 @@ file, or X selection."
     (when (gist-update id (json-encode `((description . ,new))))
       (save-excursion
         (delete-region (line-beginning-position) (1+ (line-end-position)))
-        (gist-list--insert-line `(:id ,id :created_at ,time :description ,new)))
+        (gist-list--insert-line
+         `(:id ,id :created_at ,time :description ,new :filename ,fname)))
       (message "Updating description of gist %s...done" id))))
 
 (defun gist-list-kill-url ()
@@ -249,9 +255,6 @@ file, or X selection."
   (let ((url (gist-list--get :html_url)))
     (kill-new url)
     (message "%s copied into the kill ring" url)))
-
-(defun gist-list--get (prop)
-  (plist-get (get-text-property (point) 'gist-metadata) prop))
 
 ;;;###autoload
 (defun gist-list ()
