@@ -209,7 +209,8 @@ file, or X selection."
                                    ("d" gist-list-delete-gist)
                                    ("e" gist-list-edit-description)
                                    ("n" next-line)
-                                   ("p" previous-line)))
+                                   ("p" previous-line)
+                                   ("u" gist-list-kill-url)))
 
 (defun gist-list-fetch-gist ()
   "Fetch and display the gist on the current line."
@@ -239,6 +240,13 @@ file, or X selection."
     (message "Updating description of gist %s..." id)
     (when (gist-update id (json-encode `((description . ,new))))
       (message "Updating description of gist %s...done" id))))
+
+(defun gist-list-kill-url ()
+  "Put the url of the gist on the current line onto the `kill-ring'."
+  (interactive)
+  (let ((url (gist-list--get :html_url)))
+    (kill-new url)
+    (message "%s copied into the kill ring" url)))
 
 (defun gist-list--get (prop)
   (plist-get (get-text-property (point) 'gist-metadata) prop))
