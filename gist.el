@@ -167,43 +167,40 @@ file, or X selection."
 
 (defvar gist-list-time-format "%m/%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
+(defvar gist-list-line-format
+  (concat "%-20s %-"
+          (number-to-string
+           (length (format-time-string gist-list-time-format)))
+          "s %s\n"))
 
-(defun gist-list--display (gists)
-  (with-current-buffer (get-buffer-create "*gists*")
-    (let ((inhibit-read-only t)
-          (line-format
-           (concat "%-20s %-"
-                   (number-to-string
-                    (length (format-time-string gist-list-time-format)))
-                   "s %s\n")))
+(defun gist-list--refresh (&rest ignore)
+  (let ((inhibit-read-only t))
+    (save-excursion
       (erase-buffer)
-      (save-excursion
-        (insert (format line-format
-                        "ID" "Created" "Description (or file name)"))
-        (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
-        (mapc (lambda (g)
-                (destructuring-bind (id time desc)
-                    (mapcar (& 'plist-get g) '(:id :created_at :description))
-                  (insert
-                   (propertize
-                    ;; `timezone-parse-date' or something might be useful
-                    (format line-format
-                            id
-                            (format-time-string
-                             gist-list-time-format
-                             (apply
-                              'encode-time
-                              (parse-time-string
-                               (replace-regexp-in-string "T\\|Z" " " time))))
-                            (or (.non-empty-string desc)
-                                (concat "file:"
-                                        (plist-get (gist--file g) :filename))))
-                    'gist-metadata g))))
-              gists)))
-    (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
-    (switch-to-buffer-other-window (current-buffer))))
+      (insert (format gist-list-line-format
+                      "ID" "Created" "Description (or file name)"))
+      (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
+      (mapc 'gist-list--insert-line (gist-curl "/gists")))))
+
+(defun gist-list--insert-line (data)
+  (destructuring-bind (id time desc)
+      (mapcar (& 'plist-get data) '(:id :created_at :description))
+    (insert
+     (propertize
+      ;; `timezone-parse-date' or something might be useful
+      (format gist-list-line-format
+              id
+              (format-time-string
+               gist-list-time-format
+               (apply 'encode-time
+                      (parse-time-string
+                       (replace-regexp-in-string "T\\|Z" " " time))))
+              (or (.non-empty-string desc)
+                  (concat "file:" (plist-get (gist--file data) :filename))))
+      'gist-metadata data))))
 
-(define-derived-mode gist-list-mode special-mode "Gist List")
+(define-derived-mode gist-list-mode special-mode "Gist List" nil
+  (.setq-local revert-buffer-function 'gist-list--refresh))
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
                                    ("b" gist-list-browse-gist)
                                    ("d" gist-list-delete-gist)
@@ -235,10 +232,15 @@ file, or X selection."
   "Edit description of the gist on the current line."
   (interactive)
   (let* ((id (gist-list--get :id))
+         (time (gist-list--get :created_at))
          (old (gist-list--get :description))
-         (new (.read-string-with-default "New description" nil old)))
+         (new (.read-string-with-default "New description" nil old))
+         (inhibit-read-only t))
     (message "Updating description of gist %s..." id)
     (when (gist-update id (json-encode `((description . ,new))))
+      (save-excursion
+        (delete-region (line-beginning-position) (1+ (line-end-position)))
+        (gist-list--insert-line `(:id ,id :created_at ,time :description ,new)))
       (message "Updating description of gist %s...done" id))))
 
 (defun gist-list-kill-url ()
@@ -256,7 +258,10 @@ file, or X selection."
   "Display a list of all of the current user's gists in a new buffer."
   (interactive)
   (message "Retrieving list of your gists...")
-  (gist-list--display (gist-curl "/gists")))
+  (with-current-buffer (get-buffer-create "*gists*")
+    (gist-list--refresh)
+    (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
+    (switch-to-buffer-other-window (current-buffer))))
 
 (defun gist-fetch--default ()
   (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)")
