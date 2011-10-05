@@ -81,6 +81,19 @@ return status and the JSON payload (if any)."
 
 (defun gist--file (gist) (cadr (plist-get gist :files)))
 
+(defun gist--read-content-interactively (&optional noerror)
+  (cond
+   ((region-active-p) (buffer-substring-no-properties
+                       (region-beginning) (region-end)))
+   ((y-or-n-p "Buffer? ")
+    (with-current-buffer (read-buffer "Buffer name: " (current-buffer) t)
+      (buffer-substring-no-properties (point-min) (point-max))))
+   ((y-or-n-p "Selection? ") (x-get-selection))
+   ((y-or-n-p "File? ")
+    (.file-string (read-file-name "File name: " nil nil t)))
+   (t (funcall (if noerror 'message 'error)
+               "There's no pleasing some people"))))
+
 ;;;###autoload
 (defun gist (filename content &optional public description)
   (let ((url (plist-get (gist-create filename content public description)
@@ -157,16 +170,7 @@ file, or X selection."
       (newname (.read-string-with-default "File name" nil oldname))
       (olddesc (plist-get gist :description))
       (newdesc (.read-string-with-default "Description" nil olddesc))
-      (content
-       (cond
-         ((region-active-p) (buffer-substring-no-properties
-                             (region-beginning) (region-end)))
-         ((y-or-n-p "Buffer? ")
-          (with-current-buffer (read-buffer "Buffer name: " (current-buffer) t)
-            (buffer-substring-no-properties (point-min) (point-max))))
-         ((y-or-n-p "Selection? ") (x-get-selection))
-         ((y-or-n-p "File? ") (.file-string (read-file-name "File name: ")))
-         (t (message "There's no pleasing some people") nil))))
+      (content (gist--read-content-interactively t)))
      (list id (gist-encode oldname content nil newdesc
                            (unless (equal newname oldname) newname)))))
   (gist-curl (concat "/gists/" id) data "PATCH"))
