@@ -169,7 +169,7 @@ file, or X selection."
      ((gists (gist-curl "/gists"))
       (id (.complete-with-default
            "ID" (mapcar (& (.flip 'plist-get) :id) gists)
-           nil (gist-fetch--default)))
+           nil (gist--guess-id)))
       (gist (find-if (λ (g) (equal (plist-get g :id) id)) gists))
       (file (gist--file gist))
       (oldname (plist-get file :filename))
@@ -282,7 +282,7 @@ file, or X selection."
     (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
     (switch-to-buffer-other-window (current-buffer))))
 
-(defun gist-fetch--default ()
+(defun gist--guess-id ()
   (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)")
       (.match-nearest-point "\\b\\(?:[0-9]\\{7\\}\\|[0-9a-f]\\{20\\}\\)\\b")
       (.match-nearest-point "\\(?:[0-9]\\{1,7\\}\\|[0-9a-f]\\{20\\}\\)")))
@@ -293,7 +293,7 @@ file, or X selection."
 Assumes a single-file gist (just use Git for working with
 multi-file gist repos)."
   (interactive (list (.read-string-with-default
-                      "Gist ID" 'gist-fetch-history (gist-fetch--default))))
+                      "Gist ID" 'gist-fetch-history (gist--guess-id))))
   (message "Fetching Gist %s..." id)
   (let* ((gist (gist-curl (concat "/gists/" id)))
          (file (gist--file gist))
