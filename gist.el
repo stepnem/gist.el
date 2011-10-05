@@ -94,18 +94,24 @@ return status and the JSON payload (if any)."
    (t (funcall (if noerror 'message 'error)
                "There's no pleasing some people"))))
 
+(defun gist-create (filename content &optional description public)
+  (gist-curl "/gists" (gist-encode filename content
+                                   (or public json-false) description)))
+
 ;;;###autoload
-(defun gist (filename content &optional public description)
-  (let ((url (plist-get (gist-create filename content public description)
+(defun gist-paste (content filename &optional description public)
+  "Post CONTENT as FILENAME with DESCRIPTION as a PUBLIC gist."
+  (interactive
+   (list (gist--read-content-interactively)
+         (read-file-name "File name: " nil (car file-name-history))
+         (read-string "Description: ")
+         (not (y-or-n-p "Private? "))))
+  (let ((url (plist-get (gist-create filename content description public)
                         :html_url)))
     (kill-new url)
     (message "Posted at %s" url)
     (when gist-view-gist (browse-url url))))
 
-(defun gist-create (filename content &optional public description)
-  (gist-curl "/gists" (gist-encode filename content
-                                   (or public json-false) description)))
-
 ;;;###autoload
 (defun gist-region (begin end &optional arg callback)
   "Post the current region as a new paste at gist.github.com.
@@ -118,8 +124,8 @@ With a prefix argument, prompts for description, privacy and file name."
          (description (and arg (read-string "Description: ")))
          (name (if arg (.read-string-with-default "File name" nil deffile)))
          (private (and arg (y-or-n-p "Private? "))))
-    (gist name (buffer-substring-no-properties begin end)
-          (not private) description)))
+    (gist-paste (buffer-substring-no-properties begin end)
+                name description (not private))))
 
 ;;;###autoload
 (defun gist-buffer (&optional arg)
