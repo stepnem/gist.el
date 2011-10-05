@@ -71,7 +71,7 @@ return status and the JSON payload (if any)."
               ((string-match "204" status) status)
               (t (signal 'gist-http-error (list status json))))))))
 
-(defun gist-encode (filename content &optional public description newname)
+(defun gist-encode (&optional filename content public description newname)
   (json-encode
    `(,@(when description `((description . ,description)))
      ,@(when public `((public . ,public)))
