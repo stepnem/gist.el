@@ -213,7 +213,8 @@ git-clone(1)."
       (insert (format gist-list-line-format
                       "ID" "Created" "Description[file name]"))
       (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
-      (mapc 'gist-list--insert-line (gist-curl "/gists")))))
+      (mapc 'gist-list--insert-line
+            (gist-curl (concat "/users/" gist-list-user "/gists"))))))
 
 (defun gist-list--insert-line (data)
   (destructuring-bind (id time desc)
@@ -295,14 +296,29 @@ git-clone(1)."
     (kill-new url)
     (message "%s copied into the kill ring" url)))
 
+(make-variable-buffer-local
+ (defvar gist-list-user nil
+   "*Name of the listed gists' owner.
+You can `setq-default' this to your Gist (GitHub) user name."))
+(defvar gist-user-history nil "List of Gist users read.")
 ;;;###autoload
-(defun gist-list ()
-  "Display a list of all of the current user's gists in a new buffer."
+(defun gist-list (&optional user)
+  "Display a list of all USER's (`gist-list-user''s by default) gists."
   (interactive)
-  (message "Retrieving list of your gists...")
-  (with-current-buffer (get-buffer-create "*gists*")
-    (gist-list--refresh)
+  (unless user
+    (setq user
+          (let ((def (default-value 'gist-list-user)))
+            (if current-prefix-arg
+                (read-string "User: " nil 'gist-user-history def)
+              (or def
+                  (setq-default gist-list-user
+                                (read-string "Default `gist-list-user': "
+                                             nil 'gist-user-history)))))))
+  (message "Retrieving list of %s's gists..." user)
+  (with-current-buffer (get-buffer-create (format "*%s's gists*" user))
     (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
+    (setq gist-list-user user)
+    (gist-list--refresh)
     (switch-to-buffer-other-window (current-buffer))))
 
 (defun gist--guess-id ()
