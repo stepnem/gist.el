@@ -34,6 +34,7 @@
 
 ;;; Code:
 
+(require 'cl)                           ; `find-if'
 (require 'dotelib)
 (require 'json)
 
