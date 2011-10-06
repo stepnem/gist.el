@@ -181,6 +181,22 @@ file, or X selection."
      (list id (gist-encode oldname content nil newdesc
                            (unless (equal newname oldname) newname)))))
   (gist-curl (concat "/gists/" id) data "PATCH"))
+
+(autoload 'magit-run-git "magit")
+(autoload 'magit-status "magit")
+;;;###autoload
+(defun gist-clone (&optional id dir)
+  "Clone gist ID into DIR and run `magit-status' on it.
+DIR should be a directory name suitable as the second argument to
+git-clone(1)."
+  (interactive)
+  (let* ((id (or id (gist--guess-id)))
+         (name (unless dir (.read-string-with-default "Repo dirname" nil id)))
+         (dir (or dir
+                  (expand-file-name
+                   name (read-directory-name "Parent directory: " nil nil t)))))
+    (magit-run-git "clone" (concat "git@gist.github.com:" id ".git") dir)
+    (magit-status dir)))
 
 (defvar gist-list-time-format "%m/%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
@@ -224,6 +240,7 @@ file, or X selection."
   (.setq-local revert-buffer-function 'gist-list--refresh))
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
                                    ("b" gist-list-browse-gist)
+                                   ("c" gist-list-clone-gist)
                                    ("d" gist-list-delete-gist)
                                    ("e" gist-list-edit-description)
                                    ("n" next-line)
@@ -234,6 +251,11 @@ file, or X selection."
   "Fetch and display the gist on the current line."
   (interactive)
   (gist-fetch (gist-list--get :id)))
+
+(defun gist-list-clone-gist ()
+  "Clone the gist on the current line."
+  (interactive)
+  (gist-clone (gist-list--get :id)))
 
 (defun gist-list-browse-gist ()
   "Go to the URL of the gist on the current line using `browse-url'."
