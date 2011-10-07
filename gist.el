@@ -10,7 +10,15 @@
 
 ;;; Commentary:
 
-;; http://developer.github.com/v3/gists/
+;; This is only useful with single-file gists, and will most probably remain
+;; that way, as the complexity of various ways to work with multi-file gists
+;; is in my opinion better handled by other Emacs Git tools (notably Magit and
+;; Magithub). This library is primarily for "traditional" quick pastes and
+;; viewing/editing thereof. You _can_ clone or fork multi-file Gist repos
+;; using this package, though, so if you have Magit installed the integration
+;; should be silky smooth.
+
+;; API reference: http://developer.github.com/v3/gists/
 
 ;; This started as a rewrite of <https://github.com/defunkt/gist.el>, but
 ;; nothing from the original remains other than some of the command names.
