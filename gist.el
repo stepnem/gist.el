@@ -59,6 +59,8 @@ return status and the JSON payload (if any)."
                ,@(when (cdr auth) `("-u" ,(mapconcat 'identity auth ":")))
                ,@(when data `("--data-binary" ,data))
                ,@(when method `("-X" ,method))
+               ;; GitHub returns 411 without this
+               ,@(when (string-equal method "PUT") '("-H" "Content-Length: 0"))
                ,(concat "https://api.github.com" path)))
       (goto-char (point-min))
       (while (re-search-forward "^HTTP/1.1 100 Continue\r\n\r\n" nil t))
@@ -198,6 +200,14 @@ git-clone(1)."
                    name (read-directory-name "Parent directory: " nil nil t)))))
     (magit-run-git "clone" (concat "git@gist.github.com:" id ".git") dir)
     (magit-status dir)))
+
+;;;###autoload
+(defun gist-star (id &optional unstar)
+  "Star (or unstar if UNSTAR is non-nil) gist ID."
+  (interactive (list (.read-string-with-default
+                      "ID" gist-id-history (gist--guess-id))
+                     current-prefix-arg))
+  (gist-curl (concat "/gists/" id "/star") nil (if unstar "DELETE" "PUT")))
 
 (defvar gist-list-time-format "%m/%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
@@ -249,6 +259,7 @@ git-clone(1)."
                                    ("e" gist-list-edit-description)
                                    ("n" next-line)
                                    ("p" previous-line)
+                                   ("s" gist-list-star-gist)
                                    ("u" gist-list-kill-url)))
 
 (defun gist-list-fetch-gist ()
@@ -298,6 +309,11 @@ git-clone(1)."
   (let ((url (gist-list--get :html_url)))
     (kill-new url)
     (message "%s copied into the kill ring" url)))
+
+(defun gist-list-star-gist (&optional unstar)
+  "Star (with a prefix argument, unstar) the gist on the current line."
+  (interactive "P")
+  (message "%s" (gist-star (gist-list--get :id) unstar)))
 
 (make-variable-buffer-local
  (defvar gist-list-user nil
