@@ -170,7 +170,7 @@ file, or X selection."
      ((gists (gist-curl "/gists"))
       (id (.complete-with-default
            "ID" (mapcar (& (.flip 'plist-get) :id) gists)
-           nil (gist--guess-id)))
+           'gist-id-history (gist--guess-id)))
       (gist (find-if (λ (g) (equal (plist-get g :id) id)) gists))
       (file (gist--file gist))
       (oldname (plist-get file :filename))
@@ -190,7 +190,8 @@ file, or X selection."
 DIR should be a directory name suitable as the second argument to
 git-clone(1)."
   (interactive)
-  (let* ((id (or id (gist--guess-id)))
+  (let* ((id (or id (.read-string-with-default
+                     "ID" 'gist-id-history (gist--guess-id))))
          (name (unless dir (.read-string-with-default "Repo dirname" nil id)))
          (dir (or dir
                   (expand-file-name
@@ -325,14 +326,14 @@ You can `setq-default' this to your Gist (GitHub) user name."))
   (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)")
       (.match-nearest-point "\\b\\(?:[0-9]\\{7\\}\\|[0-9a-f]\\{20\\}\\)\\b")
       (.match-nearest-point "\\(?:[0-9]\\{1,7\\}\\|[0-9a-f]\\{20\\}\\)")))
-(defvar gist-fetch-history nil)
+(defvar gist-id-history nil "List of Gist IDs read.")
 ;;;###autoload
 (defun gist-fetch (id)
   "Fetch a gist ID and display it in a new buffer.
 Assumes a single-file gist (just use Git for working with
 multi-file gist repos)."
   (interactive (list (.read-string-with-default
-                      "Gist ID" 'gist-fetch-history (gist--guess-id))))
+                      "Gist ID" 'gist-id-history (gist--guess-id))))
   (message "Fetching Gist %s..." id)
   (let* ((gist (gist-curl (concat "/gists/" id)))
          (file (gist--file gist))
