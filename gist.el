@@ -202,6 +202,18 @@ git-clone(1)."
     (magit-status dir)))
 
 ;;;###autoload
+(defun gist-fork (id &optional clone)
+  "Fork gist ID.
+With a prefix argument or if CLONE is non-nil, also clone the new
+fork and run `magit-status' on it."
+  (interactive (list (.read-string-with-default
+                      "ID" gist-id-history (gist--guess-id))
+                     current-prefix-arg))
+  (let ((gist (gist-curl (concat "/gists/" id "/fork") nil "POST")))
+    (when clone
+      (gist-clone (plist-get gist :id)))))
+
+;;;###autoload
 (defun gist-star (id &optional unstar)
   "Star (or unstar if UNSTAR is non-nil) gist ID."
   (interactive (list (.read-string-with-default
@@ -257,6 +269,7 @@ git-clone(1)."
                                    ("c" gist-list-clone-gist)
                                    ("d" gist-list-delete-gist)
                                    ("e" gist-list-edit-description)
+                                   ("f" gist-list-fork-gist)
                                    ("n" next-line)
                                    ("p" previous-line)
                                    ("s" gist-list-star-gist)
@@ -271,6 +284,13 @@ git-clone(1)."
   "Clone the gist on the current line."
   (interactive)
   (gist-clone (gist-list--get :id)))
+
+(defun gist-list-fork-gist (&optional clone)
+  "Fork the gist on the current line.
+With a prefix argument, also clone the new gist and open its
+Magit status buffer."
+  (interactive "P")
+  (gist-fork (gist-list--get :id) clone))
 
 (defun gist-list-browse-gist ()
   "Go to the URL of the gist on the current line using `browse-url'."
