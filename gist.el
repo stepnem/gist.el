@@ -215,7 +215,9 @@ git-clone(1)."
                       "ID" "Created" "Description[file name]"))
       (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
       (mapc 'gist-list--insert-line
-            (gist-curl (concat "/users/" gist-list-user "/gists"))))))
+            (gist-curl (if gist-list-user
+                           (concat "/users/" gist-list-user "/gists")
+                         "/gists/starred"))))))
 
 (defun gist-list--insert-line (data)
   (destructuring-bind (id time desc)
@@ -304,23 +306,33 @@ You can `setq-default' this to your Gist (GitHub) user name."))
 (defvar gist-user-history nil "List of Gist users read.")
 ;;;###autoload
 (defun gist-list (&optional user)
-  "Display a list of all USER's (`gist-list-user''s by default) gists."
+  "Display a list of all USER's (`gist-list-user''s by default) gists.
+With a prefix argument, prompts for USER in the minibuffer."
   (interactive)
-  (unless user
-    (setq user
-          (let ((def (default-value 'gist-list-user)))
-            (if current-prefix-arg
-                (read-string "User: " nil 'gist-user-history def)
-              (or def
-                  (setq-default gist-list-user
-                                (read-string "Default `gist-list-user': "
-                                             nil 'gist-user-history)))))))
-  (message "Retrieving list of %s's gists..." user)
-  (with-current-buffer (get-buffer-create (format "*%s's gists*" user))
-    (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
-    (setq gist-list-user user)
-    (gist-list--refresh)
-    (switch-to-buffer-other-window (current-buffer))))
+  (gist--list
+   (or user
+       (let ((def (default-value 'gist-list-user)))
+         (if current-prefix-arg
+             (read-string "User: " nil 'gist-user-history def)
+           (or def
+               (setq-default gist-list-user
+                             (read-string "Default `gist-list-user': "
+                                          nil 'gist-user-history))))))))
+
+(defun gist--list (&optional user)
+  (let ((s (concat (or user "starred") (when user "'s") " gists")))
+    (message (concat "Retrieving list of " s))
+    (with-current-buffer (get-buffer-create (format "*%s*" s))
+      (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
+      (setq gist-list-user user)
+      (gist-list--refresh)
+      (switch-to-buffer-other-window (current-buffer)))))
+
+;;;###autoload
+(defun gist-list-starred ()
+  "Display a list of all your starred gists."
+  (interactive)
+  (gist--list))
 
 (defun gist--guess-id ()
   (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)")
