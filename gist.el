@@ -4,7 +4,7 @@
 ;; Licence: Whatever Works
 ;; Version: 1.0b
 ;; Created: 2011-10-02 17:10 +0200 Sunday
-;; Keywords: gist, git, github, pastebin
+;; Keywords: gist, git, github, pastebin, comm, tools, vc
 
 ;; This file is NOT part of GNU Emacs.
 
