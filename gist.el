@@ -90,8 +90,10 @@ return status and the JSON payload (if any)."
   (gist--json-encode
    `(,@(when description `((description . ,description)))
      ,@(when public `((public . ,public)))
-     ,@(when content `((files (,filename
-                               ,@(when newname `((filename . ,newname)))
+     ,@(when content `((files (,(file-name-nondirectory filename)
+                               ,@(when newname
+                                   `((filename . ,(file-name-nondirectory
+                                                   newname))))
                                (content . ,content))))))))
 
 (defun gist--file (gist) (cadr (plist-get gist :files)))
