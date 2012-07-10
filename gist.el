@@ -82,8 +82,12 @@ return status and the JSON payload (if any)."
               ((string-match "204" status) status)
               (t (signal 'gist-http-error (list status json))))))))
 
+(defun gist--json-encode (object)
+  "`json-encode' with a workaround for the broken GitHub API."
+  (replace-regexp-in-string "%" "\\\\u0025" (json-encode object)))
+
 (defun gist-encode (&optional filename content public description newname)
-  (json-encode
+  (gist--json-encode
    `(,@(when description `((description . ,description)))
      ,@(when public `((public . ,public)))
      ,@(when content `((files (,filename
@@ -324,7 +328,7 @@ Magit status buffer."
          (new (.read-string-with-default "New description" nil old))
          (inhibit-read-only t))
     (message "Updating description of gist %s..." id)
-    (when (gist-update id (json-encode `((description . ,new))))
+    (when (gist-update id (gist--json-encode `((description . ,new))))
       (save-excursion
         (delete-region (line-beginning-position) (1+ (line-end-position)))
         (gist-list--insert-line
