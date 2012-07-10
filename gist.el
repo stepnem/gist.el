@@ -379,9 +379,9 @@ With a prefix argument, prompts for USER in the minibuffer."
   (gist--list))
 
 (defun gist--guess-id ()
-  (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)")
-      (.match-nearest-point "\\b\\(?:[0-9]\\{7\\}\\|[0-9a-f]\\{20\\}\\)\\b")
-      (.match-nearest-point "\\(?:[0-9]\\{1,7\\}\\|[0-9a-f]\\{20\\}\\)")))
+  (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)" "w")
+      (.match-nearest-point "\\b\\(?:[0-9]\\{7\\}\\|[0-9a-f]\\{20\\}\\)\\b" "w")
+      (.match-nearest-point "\\(?:[0-9]\\{1,7\\}\\|[0-9a-f]\\{20\\}\\)" "w")))
 (defvar gist-id-history nil "List of Gist IDs read.")
 ;;;###autoload
 (defun gist-fetch (id)
