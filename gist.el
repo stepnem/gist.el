@@ -241,7 +241,7 @@ fork and run `magit-status' on it."
                      current-prefix-arg))
   (gist-curl (concat "/gists/" id "/star") nil (if unstar "DELETE" "PUT")))
 
-(defvar gist-list-time-format "%m/%d %R"
+(defvar gist-list-time-format "%y-%m-%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
 (defvar gist-list-line-format
   (vector '("ID" 20 t)
