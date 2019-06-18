@@ -244,58 +244,48 @@ fork and run `magit-status' on it."
 (defvar gist-list-time-format "%m/%d %R"
   "*`format-time-string'-compatible format for gist time stamps.")
 (defvar gist-list-line-format
-  (concat "%-20s %-"
-          (number-to-string
-           (length (format-time-string gist-list-time-format)))
-          "s %s\n"))
-
+  (vector '("ID" 20 t)
+          `("Created" ,(length (format-time-string gist-list-time-format)) t)
+          '("Description[file name]" 0 t)))
 (defvar-local gist-list-user nil
   "*Name of the listed gists' owner.
 You can `setq-default' this to your Gist (GitHub) user name.")
 
-(defun gist-list--refresh (&rest ignore)
-  (let ((inhibit-read-only t))
-    (save-excursion
-      (erase-buffer)
-      (insert (format gist-list-line-format
-                      "ID" "Created" "Description[file name]"))
-      (overlay-put (make-overlay (point-min) (point)) 'face 'header-line)
-      (mapc 'gist-list--insert-line
-            (gist-curl (if gist-list-user
-                           (concat "/users/" gist-list-user "/gists")
-                         "/gists/starred"))))))
+(defun gist-list--entries (&rest ignore)
+  (mapcar 'gist-list--entry
+          (gist-curl (if gist-list-user
+                         (concat "/users/" gist-list-user "/gists")
+                       "/gists/starred"))))
 
-(defun gist-list--insert-line (data)
+(defun gist-list--entry (data)
   (cl-destructuring-bind (id time desc)
       (mapcar (& 'plist-get data) '(:id :created_at :description))
-    (insert
-     (propertize
-      ;; `timezone-parse-date' or something might be useful
-      (format gist-list-line-format
-              id
-              (format-time-string
-               gist-list-time-format
-               (apply 'encode-time
-                      (parse-time-string
-                       (replace-regexp-in-string "T\\|Z" " " time))))
-              (concat desc "[" (plist-get (gist--file data) :filename) "]"))
-      'gist-metadata data))))
+    (list nil (vector
+               (propertize id 'gist-metadata data)
+               ;; `timezone-parse-date' or something might be useful
+               (format-time-string
+                gist-list-time-format
+                (apply 'encode-time
+                       (parse-time-string
+                        (replace-regexp-in-string "T\\|Z" " " time))))
+               (concat desc "[" (plist-get (gist--file data) :filename) "]")))))
 
 (defun gist-list--get (prop)
   (plist-get (funcall (if (eq prop :filename) 'gist--file 'identity)
-                      (get-text-property (point) 'gist-metadata))
+                      (get-text-property (point-at-bol) 'gist-metadata))
              prop))
 
-(define-derived-mode gist-list-mode special-mode "Gist List" nil
-  (setq-local revert-buffer-function 'gist-list--refresh))
+(define-derived-mode gist-list-mode tabulated-list-mode "Gist List" nil
+  (setq tabulated-list-format gist-list-line-format
+        tabulated-list-entries #'gist-list--entries)
+  (tabulated-list-init-header)
+  (tabulated-list-print))
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
                                    ("b" gist-list-browse-gist)
                                    ("c" gist-list-clone-gist)
                                    ("d" gist-list-delete-gist)
                                    ("e" gist-list-edit-description)
                                    ("f" gist-list-fork-gist)
-                                   ("n" next-line)
-                                   ("p" previous-line)
                                    ("s" gist-list-star-gist)
                                    ("u" gist-list-kill-url)))
 
@@ -341,10 +331,7 @@ Magit status buffer."
          (inhibit-read-only t))
     (message "Updating description of gist %s..." id)
     (when (gist-update id (gist--json-encode `((description . ,new))))
-      (save-excursion
-        (delete-region (line-beginning-position) (1+ (line-end-position)))
-        (gist-list--insert-line
-         `(:id ,id :created_at ,time :description ,new :filename ,fname)))
+      (revert-buffer)
       (message "Updating description of gist %s...done" id))))
 
 (defun gist-list-kill-url ()
@@ -381,7 +368,7 @@ With a prefix argument, prompts for USER in the minibuffer."
     (with-current-buffer (get-buffer-create (format "*%s*" s))
       (unless (derived-mode-p 'gist-list-mode) (gist-list-mode))
       (setq gist-list-user user)
-      (gist-list--refresh)
+      (revert-buffer)
       (switch-to-buffer-other-window (current-buffer)))))
 
 ;;;###autoload
