@@ -287,7 +287,7 @@ You can `setq-default' this to your Gist (GitHub) user name.")
              prop))
 
 (define-derived-mode gist-list-mode special-mode "Gist List" nil
-  (.setq-local revert-buffer-function 'gist-list--refresh))
+  (setq-local revert-buffer-function 'gist-list--refresh))
 (.define-keys gist-list-mode-map '(("\C-m" gist-list-fetch-gist)
                                    ("b" gist-list-browse-gist)
                                    ("c" gist-list-clone-gist)
