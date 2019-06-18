@@ -5,6 +5,7 @@
 ;; Version: 1.0b
 ;; Created: 2011-10-02 17:10 +0200 Sunday
 ;; Keywords: gist, git, github, pastebin, comm, tools, vc
+;; Tested-with: GNU Emacs 26.2
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -42,7 +43,7 @@
 
 ;;; Code:
 
-(require 'cl)                           ; `find-if'
+(require 'cl-lib)                           ; `cl-find-if', `destructuring-bind'
 (require 'dotelib)
 (require 'json)
 
@@ -58,13 +59,17 @@ payload. Returns the JSON response as parsed by
 `json-read-from-string' when successful, otherwise signals a
 `gist-http-error' with error data consisting of a list of the
 return status and the JSON payload (if any)."
-  (let ((auth (auth-source-user-or-password
-               '("login" "password") "api.github.com" "https" t)))
+  (let* ((auth (car (auth-source-search :host "api.github.com" :port "https")))
+         (user (plist-get auth :user))
+         (secret (plist-get auth :secret)))
     (with-current-buffer (get-buffer-create "*gist-http*")
       (erase-buffer)
       (apply 'call-process "curl" nil t nil
              `("-sD-"
-               ,@(when (cdr auth) `("-u" ,(mapconcat 'identity auth ":")))
+               ,@(when auth `("-u" ,(concat user ":"
+                                            (if (functionp secret)
+                                                (funcall secret)
+                                              secret))))
                ,@(when data `("--data-binary" ,data))
                ,@(when method `("-X" ,method))
                ;; GitHub returns 411 without this
@@ -105,7 +110,7 @@ return status and the JSON payload (if any)."
    ((y-or-n-p "Buffer? ")
     (with-current-buffer (read-buffer "Buffer name: " (current-buffer) t)
       (buffer-substring-no-properties (point-min) (point-max))))
-   ((y-or-n-p "Selection? ") (x-get-selection))
+   ((y-or-n-p "Selection? ") (gui-get-selection))
    ((y-or-n-p "File? ")
     (.file-string (read-file-name "File name: " nil nil t)))
    (t (funcall (if noerror 'message 'error)
@@ -174,6 +179,7 @@ With a prefix argument, prompts for privacy and file name."
   (if (use-region-p) (gist-region (region-beginning) (region-end) arg)
     (gist-buffer arg)))
 
+(defvar gist-id-history nil "List of Gist IDs read.")
 ;;;###autoload
 (defun gist-update (id data)
   "Update the (single-file) gist ID with DATA.
@@ -187,7 +193,7 @@ file, or X selection."
       (id (.complete-with-default
            "ID" (mapcar (& (.flip 'plist-get) :id) gists)
            'gist-id-history (gist--guess-id)))
-      (gist (find-if (λ (g) (equal (plist-get g :id) id)) gists))
+      (gist (cl-find-if (λ (g) (equal (plist-get g :id) id)) gists))
       (file (gist--file gist))
       (oldname (plist-get file :filename))
       (newname (.read-string-with-default "File name" nil oldname))
@@ -213,7 +219,7 @@ git-clone(1)."
                   (expand-file-name
                    name (read-directory-name "Parent directory: " nil nil t)))))
     (magit-run-git "clone" (concat "git@gist.github.com:" id ".git") dir)
-    (magit-status dir)))
+    (funcall-interactively #'magit-status dir)))
 
 ;;;###autoload
 (defun gist-fork (id &optional clone)
@@ -243,6 +249,10 @@ fork and run `magit-status' on it."
            (length (format-time-string gist-list-time-format)))
           "s %s\n"))
 
+(defvar-local gist-list-user nil
+  "*Name of the listed gists' owner.
+You can `setq-default' this to your Gist (GitHub) user name.")
+
 (defun gist-list--refresh (&rest ignore)
   (let ((inhibit-read-only t))
     (save-excursion
@@ -256,7 +266,7 @@ fork and run `magit-status' on it."
                          "/gists/starred"))))))
 
 (defun gist-list--insert-line (data)
-  (destructuring-bind (id time desc)
+  (cl-destructuring-bind (id time desc)
       (mapcar (& 'plist-get data) '(:id :created_at :description))
     (insert
      (propertize
@@ -349,10 +359,6 @@ Magit status buffer."
   (interactive "P")
   (message "%s" (gist-star (gist-list--get :id) unstar)))
 
-(make-variable-buffer-local
- (defvar gist-list-user nil
-   "*Name of the listed gists' owner.
-You can `setq-default' this to your Gist (GitHub) user name."))
 (defvar gist-user-history nil "List of Gist users read.")
 ;;;###autoload
 (defun gist-list (&optional user)
@@ -388,7 +394,7 @@ With a prefix argument, prompts for USER in the minibuffer."
   (or (.match-nearest-point "https://gist\\.github\\.com/\\([0-9a-f]+\\)" "w")
       (.match-nearest-point "\\b\\(?:[0-9]\\{7\\}\\|[0-9a-f]\\{20\\}\\)\\b" "w")
       (.match-nearest-point "\\(?:[0-9]\\{1,7\\}\\|[0-9a-f]\\{20\\}\\)" "w")))
-(defvar gist-id-history nil "List of Gist IDs read.")
+
 ;;;###autoload
 (defun gist-fetch (id)
   "Fetch a gist ID and display it in a new buffer.
@@ -411,4 +417,8 @@ multi-file gist repos)."
   (message "Fetching Gist %s...done" id))
 
 (provide 'gist)
-;;; gist.el ends here.
+;; Local Variables:
+;; indent-tabs-mode: nil
+;; flycheck-disabled-checkers: (emacs-lisp-checkdoc)
+;; End:
+;;; gist.el ends here
