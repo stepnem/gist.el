@@ -47,6 +47,7 @@
 (require 'dotelib)
 (require 'json)
 
+(defvar gist-user nil "*Your Gist (GitHub) user name.")
 (defvar gist-view-gist nil
   "*If non-nil, automatically `browse-url' new gists after posting.")
 
@@ -59,7 +60,8 @@ payload. Returns the JSON response as parsed by
 `json-read-from-string' when successful, otherwise signals a
 `gist-http-error' with error data consisting of a list of the
 return status and the JSON payload (if any)."
-  (let* ((auth (car (auth-source-search :host "api.github.com" :port "https")))
+  (let* ((auth (car (auth-source-search :user gist-user
+                                        :host "api.github.com" :port "https")))
          (user (plist-get auth :user))
          (secret (plist-get auth :secret)))
     (with-current-buffer (get-buffer-create "*gist-http*")
@@ -247,7 +249,7 @@ fork and run `magit-status' on it."
   (vector '("ID" 20 t)
           `("Created" ,(length (format-time-string gist-list-time-format)) t)
           '("Description[file name]" 0 t)))
-(defvar-local gist-list-user nil
+(defvar-local gist-list-user gist-user
   "*Name of the listed gists' owner.
 You can `setq-default' this to your Gist (GitHub) user name.")
 
