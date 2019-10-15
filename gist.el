@@ -146,7 +146,8 @@ With a prefix argument, prompts for description, privacy and file name."
   (let* ((deffile (file-name-nondirectory
                    (or (buffer-file-name) (buffer-name))))
          (description (and arg (read-string "Description: ")))
-         (name (if arg (.read-string-with-default "File name" nil deffile)))
+         (name (if arg (.read-string-with-default "File name" nil deffile)
+                 deffile))
          (private (and arg (y-or-n-p "Private? "))))
     (gist-paste (buffer-substring-no-properties begin end)
                 name description (not private))))
