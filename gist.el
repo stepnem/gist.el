@@ -93,6 +93,7 @@ return status and the JSON payload (if any)."
   "`json-encode' with a workaround for the broken GitHub API."
   (replace-regexp-in-string "%" "\\\\u0025" (json-encode object)))
 
+;;;###autoload
 (defun gist-encode (&optional filename content public description newname)
   (gist--json-encode
    `(,@(when description `((description . ,description)))
