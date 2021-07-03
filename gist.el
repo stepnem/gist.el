@@ -56,10 +56,10 @@
 (defun gist-curl (path &optional data method)
   "Make a synchronous HTTPS request with METHOD for PATH to the GitHub API.
 METHOD defaults to GET when DATA is nil, or POST with DATA as
-payload. Returns the JSON response as parsed by
-`json-read-from-string' when successful, otherwise signals a
-`gist-http-error' with error data consisting of a list of the
-return status and the JSON payload (if any)."
+payload. Returns the JSON response as parsed by `json-read' when
+successful, otherwise signals a `gist-http-error' with error data
+consisting of a list of the return status and the JSON
+payload (if any)."
   (let* ((auth (car (auth-source-search :user gist-user
                                         :host "api.github.com" :port "https")))
          (user (plist-get auth :user))
